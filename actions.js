@@ -1,33 +1,37 @@
-import { currentItem, stack, render } from './data.js';
-import { addChildAndEnter } from './utils.js';
-import { saveOPMLBranch, importBranch } from './opml.js';
-
-export function setupActionSheet(){
+// actions.js
+window.setupActionSheet = function(){
   const actionSheet = document.getElementById("action-sheet");
+
   document.getElementById("addChildBtn").onclick = ()=>{
-    if(!currentItem) return;
-    addChildAndEnter(currentItem);
+    if(!window.currentItem) return;
+    const name = prompt("New item name:");
+    if(!name) return;
+    window.currentItem.children.push({ text:name, children:[], checked:false });
+    window.render();
     hideActionSheet();
   };
+
   document.getElementById("editBtn").onclick = ()=>{
-    if(!currentItem) return;
-    const name = prompt("Edit item name:", currentItem.text);
-    if(name) { currentItem.text=name; render(); }
+    if(!window.currentItem) return;
+    const name = prompt("Edit item name:", window.currentItem.text);
+    if(name) { window.currentItem.text=name; window.render(); }
     hideActionSheet();
   };
+
   document.getElementById("deleteBtn").onclick = ()=>{
-    if(!currentItem) return;
-    const current = stack[stack.length-1];
-    const index = current.children.indexOf(currentItem);
-    if(index>=0 && confirm(`Delete "${currentItem.text}"?`)){
+    if(!window.currentItem) return;
+    const current = window.stack[window.stack.length-1];
+    const index = current.children.indexOf(window.currentItem);
+    if(index>=0 && confirm(`Delete "${window.currentItem.text}"?`)){
       current.children.splice(index,1);
-      render();
+      window.render();
     }
     hideActionSheet();
   };
-  document.getElementById("exportBranchBtn").onclick = saveOPMLBranch;
-  document.getElementById("importBranchBtn").onclick = importBranch;
+
+  document.getElementById("exportBranchBtn").onclick = window.saveOPMLBranch;
+  document.getElementById("importBranchBtn").onclick = window.importBranch;
   document.getElementById("cancelBtn").onclick = hideActionSheet;
 
-  function hideActionSheet(){ actionSheet.style.bottom="-350px"; currentItem=null; }
-}
+  function hideActionSheet(){ actionSheet.style.bottom="-350px"; window.currentItem=null; }
+};
