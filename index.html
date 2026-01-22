@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Recursive List Editor with Large Checkboxes</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recursive List Editor</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
   <header>
     <button id="backBtn">←</button>
     <div class="title" id="title">Root</div>
@@ -31,6 +32,12 @@
 
   <input type="file" id="branchFileInput" style="display:none" accept=".opml,text/xml">
 
-  <script type="module" src="app.js"></script>
+  <!-- Load scripts in order -->
+  <script src="data.js"></script>
+  <script src="drag.js"></script>
+  <script src="opml.js"></script>
+  <script src="actions.js"></script>
+  <script src="app.js"></script>
+
 </body>
 </html>
