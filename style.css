@@ -1,25 +1,33 @@
+/* style.css */
+
+/* Reset + page setup */
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
   font-family: system-ui, -apple-system, sans-serif;
   background: #fff;
   user-select: none;
-  position: relative;
-
-  /* ✅ ADDED: allow vertical scrolling with touch */
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
 }
 
+/* App layout: column flex */
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* prevent body scroll */
+}
+
+/* Header stays fixed at top */
 header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   padding: 0.75rem;
   border-bottom: 1px solid #ddd;
   gap: 0.5rem;
   flex-wrap: wrap;
+  background: #fff;
+  z-index: 10;
 }
 
 header button {
@@ -37,20 +45,27 @@ header .title {
   font-size: 1.1rem;
 }
 
-ul {
+/* ✅ THIS is the guaranteed scroll container */
+ul#list {
+  flex: 1 1 auto;              /* take remaining height */
+  overflow-y: auto;            /* real scrolling */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;         /* allow two-finger scroll */
   list-style: none;
   margin: 0;
   padding: 0;
+  background: #fff;
 }
 
+/* List items */
 li {
   font-size: 2.2rem;
   padding: 1rem;
   border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
-  touch-action: none;
   background: #fff;
+  touch-action: manipulation;  /* block single-finger scroll */
 }
 
 li.dragging {
@@ -58,15 +73,18 @@ li.dragging {
   background: #f0f0f0;
 }
 
+/* Label inside list item */
 .label {
   flex: 1;
 }
 
+/* Enter child button */
 .enter {
   font-size: 1.5rem;
   padding-left: 0.5rem;
 }
 
+/* Ghost line */
 #ghost-line {
   height: 4px;
   background: #007aff;
@@ -78,6 +96,7 @@ li.dragging {
   z-index: 1000;
 }
 
+/* Action Sheet */
 #action-sheet {
   position: fixed;
   left: 0;
