@@ -36,8 +36,12 @@ li {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-.show-children-btn { transform: scale(2); }
+li.reordering { opacity: 0.6; background: #f0f0f0; }
+.show-children-btn { transform: scale(2); transform-origin: center; }
 #sheet {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -46,6 +50,7 @@ li {
   transform: translateY(100%);
   transition: transform 0.25s ease;
   padding: 1rem;
+  z-index: 3;
 }
 #sheet.open { transform: translateY(0); }
 #sheet button {
@@ -95,7 +100,6 @@ const safeLoadOPML     = () => window.loadOPML     ? loadOPML()     : unavailabl
 const safeSaveOPML     = () => window.saveOPML     ? saveOPML()     : unavailable();
 const safeExportBranch = () => window.exportBranch ? exportBranch() : unavailable();
 const safeImportBranch = () => window.importBranch ? importBranch() : unavailable();
-
 const safeScheduleSave = () => window.scheduleSave ? scheduleSave() : null;
 
 /* ============================================================
@@ -109,131 +113,129 @@ document.documentElement.style.setProperty("--menu-flex", menuButtonScale);
    DATA MODEL
    ============================================================ */
 let idCounter = 1;
-function createNode(text) {
-  return { id: "n" + idCounter++, text, children: [] };
-}
+function createNode(text) { return { id: "n" + idCounter++, text, children: [] }; }
 
 const root = { id: "root", text: "ROOT", children: [] };
-for (let i = 1; i <= 15; i++) root.children.push(createNode("Item " + i));
+for (let i=1;i<=15;i++) root.children.push(createNode("Item "+i));
 
 let currentNode = root;
 let parentMap = new Map();
 let clipboard = null;
 
 /* ============================================================
-   UI + RENDER
+   STATE + GESTURE
+   ============================================================ */
+let state = "idle"; // idle | actionSheet | reorder
+let selectedNode = null;
+let selectedSiblings = null;
+const gesture = { node: null, siblings: null };
+const LONG_PRESS_MS = 600;
+let longPressTimer = null;
+
+/* ============================================================
+   RENDER
    ============================================================ */
 const ul = document.getElementById("list");
 const sheet = document.getElementById("sheet");
 
-function render(nodes) {
+function render(nodes){
   document.getElementById("parent-name").textContent =
-    currentNode === root ? "ROOT" : currentNode.text;
-
+    currentNode===root ? "ROOT" : currentNode.text;
   ul.innerHTML = "";
-  nodes.forEach(node => {
-    parentMap.set(node, currentNode);
+  nodes.forEach(node=>{
+    parentMap.set(node,currentNode);
     const li = document.createElement("li");
     li.textContent = node.text;
 
-    if (node.children.length) {
+    if(node.children.length){
       const btn = document.createElement("button");
-      btn.textContent = "▶";
-      btn.className = "show-children-btn";
-      btn.onclick = e => {
-        e.stopPropagation();
-        currentNode = node;
-        render(node.children);
-      };
+      btn.textContent="▶";
+      btn.className="show-children-btn";
+      btn.onclick = e=>{ e.stopPropagation(); currentNode=node; render(node.children); };
       li.appendChild(btn);
     }
-    ul.appendChild(li);
 
-    li.onclick = () => {
-      selectedNode = node;
-      selectedSiblings = nodes;
-      openSheet();
-    };
+    // ---- touch handling ----
+    li.addEventListener("touchstart", e=>{
+      if(e.target.tagName==="BUTTON") return;
+
+      if(e.touches.length===2){
+        state="reorder";
+        gesture.node=node;
+        gesture.siblings=nodes;
+        li.classList.add("reordering");
+        return;
+      }
+
+      longPressTimer = setTimeout(()=>{
+        state="actionSheet";
+        selectedNode=node;
+        selectedSiblings=nodes;
+        openSheet();
+      }, LONG_PRESS_MS);
+    });
+
+    li.addEventListener("touchmove", e=>{
+      clearTimeout(longPressTimer);
+      if(state!=="reorder" || e.touches.length!==2) return;
+      e.preventDefault();
+      const y=e.touches[0].clientY;
+      const from=nodes.indexOf(node);
+      const to=indexFromY(y);
+      if(from!==to){
+        moveItem(nodes,from,to);
+        render(nodes);
+        safeScheduleSave();
+      }
+    });
+
+    li.addEventListener("touchend", e=>{
+      clearTimeout(longPressTimer);
+      if(state==="reorder") li.classList.remove("reordering");
+      state="idle";
+    });
+
+    li.addEventListener("touchcancel", ()=>{
+      clearTimeout(longPressTimer);
+      if(state==="reorder") li.classList.remove("reordering");
+      state="idle";
+    });
+
+    ul.appendChild(li);
   });
 }
 
 /* ============================================================
+   HELPERS
+   ============================================================ */
+function indexFromY(y){
+  return [...ul.children].findIndex(li=>y<li.getBoundingClientRect().top+li.offsetHeight/2);
+}
+function moveItem(arr,from,to){ const [x]=arr.splice(from,1); arr.splice(to,0,x); }
+
+/* ============================================================
    MUTATIONS
    ============================================================ */
-function addItem() {
-  const t = prompt("New item");
-  if (!t) return;
-  currentNode.children.push(createNode(t));
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function addChildSelected() {
-  const t = prompt("New child");
-  if (!t) return;
-  selectedNode.children.push(createNode(t));
-  closeSheet();
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function paste() {
-  if (!clipboard) return;
-  currentNode.children.push(clipboard);
-  clipboard = null;
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function pasteAsChildSelected() {
-  if (!clipboard) return;
-  selectedNode.children.push(clipboard);
-  clipboard = null;
-  closeSheet();
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function cutSelected() {
-  clipboard = selectedNode;
-  selectedSiblings.splice(selectedSiblings.indexOf(selectedNode), 1);
-  closeSheet();
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function deleteSelected() {
-  selectedSiblings.splice(selectedSiblings.indexOf(selectedNode), 1);
-  closeSheet();
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function editSelected() {
-  const t = prompt("Edit", selectedNode.text);
-  if (t !== null) selectedNode.text = t;
-  closeSheet();
-  render(currentNode.children);
-  safeScheduleSave();
-}
-
-function goBack() {
-  if (currentNode === root) return;
-  currentNode = parentMap.get(currentNode);
-  render(currentNode.children);
-}
+function addItem(){ const t=prompt("New item"); if(!t)return; currentNode.children.push(createNode(t)); render(currentNode.children); safeScheduleSave(); }
+function addChildSelected(){ const t=prompt("New child"); if(!t)return; selectedNode.children.push(createNode(t)); closeSheet(); render(currentNode.children); safeScheduleSave(); }
+function paste(){ if(!clipboard)return; currentNode.children.push(clipboard); clipboard=null; render(currentNode.children); safeScheduleSave(); }
+function pasteAsChildSelected(){ if(!clipboard)return; selectedNode.children.push(clipboard); clipboard=null; closeSheet(); render(currentNode.children); safeScheduleSave(); }
+function cutSelected(){ clipboard=selectedNode; selectedSiblings.splice(selectedSiblings.indexOf(selectedNode),1); closeSheet(); render(currentNode.children); safeScheduleSave(); }
+function deleteSelected(){ selectedSiblings.splice(selectedSiblings.indexOf(selectedNode),1); closeSheet(); render(currentNode.children); safeScheduleSave(); }
+function editSelected(){ const t=prompt("Edit",selectedNode.text); if(t!==null)selectedNode.text=t; closeSheet(); render(currentNode.children); safeScheduleSave(); }
+function goBack(){ if(currentNode===root) return; currentNode=parentMap.get(currentNode); render(currentNode.children); }
 
 /* ============================================================
    UI HELPERS
    ============================================================ */
-function openSheet() { sheet.classList.add("open"); }
-function closeSheet() { sheet.classList.remove("open"); }
+function openSheet(){ sheet.classList.add("open"); }
+function closeSheet(){ sheet.classList.remove("open"); }
 
 /* ============================================================
    INIT
    ============================================================ */
-(async () => {
-  if (window.loadState) await loadState();
+(async ()=>{
+  if(window.loadState) await loadState();
   render(currentNode.children);
 })();
 </script>
